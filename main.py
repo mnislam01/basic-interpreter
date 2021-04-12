@@ -1,7 +1,7 @@
 import basic
-
+print("Ready")
 while True:
-    text = input("In: ")
+    text = input(">> ")
     results, error = basic.run('<stdin>', text)
 
     if error:

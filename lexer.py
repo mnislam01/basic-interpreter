@@ -9,6 +9,10 @@ from errors import (
 from position import Position
 from tokens import (
     DIGITS,
+    LETTERS,
+    ALPHANUMERIC,
+    KEYWORDS,
+    UNDERSCORE_ALPHANUMERIC,
     TokenTypes,
     TokenObj
 )
@@ -44,6 +48,16 @@ class Lexer:
         else:
             return TokenObj(TokenTypes.TT_FLOAT, float(num_str), start_pos=start_pos, end_pos=self.pos)
 
+    def make_identifier(self):
+        iden_str = ""
+        start_pos = self.pos.copy()
+
+        while self.current_char is not None and self.current_char in UNDERSCORE_ALPHANUMERIC:
+            iden_str += self.current_char
+            self.advance()
+        token_type = TokenTypes.TT_KEYWORD if iden_str in KEYWORDS else TokenTypes.TT_IDENTIFIER
+        return TokenObj(token_type, iden_str, start_pos=start_pos, end_pos=self.pos)
+
     def make_tokens(self):
         tokens = []
 
@@ -52,6 +66,8 @@ class Lexer:
                 self.advance()
             elif self.current_char in DIGITS:
                 tokens.append(self.make_number())
+            elif self.current_char in LETTERS:
+                tokens.append(self.make_identifier())
             elif self.current_char == "+":
                 tokens.append(TokenObj(TokenTypes.TT_PLUS, start_pos=self.pos))
                 self.advance()
@@ -67,11 +83,14 @@ class Lexer:
             elif self.current_char == "^":
                 tokens.append(TokenObj(TokenTypes.TT_POWER, start_pos=self.pos))
                 self.advance()
+            elif self.current_char == "=":
+                tokens.append(TokenObj(TokenTypes.TT_EQ, start_pos=self.pos))
+                self.advance()
             elif self.current_char == "(":
-                tokens.append(TokenObj(TokenTypes.TT_LPARAM, start_pos=self.pos))
+                tokens.append(TokenObj(TokenTypes.TT_LPAREN, start_pos=self.pos))
                 self.advance()
             elif self.current_char == ")":
-                tokens.append(TokenObj(TokenTypes.TT_RPARAM, start_pos=self.pos))
+                tokens.append(TokenObj(TokenTypes.TT_RPAREN, start_pos=self.pos))
                 self.advance()
             else:
                 pos_start = self.pos.copy()

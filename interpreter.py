@@ -7,6 +7,7 @@ class Context:
         self._display_name = display_name
         self._parent = parent
         self._parent_entry_pos = parent_entry_pos
+        self._symbol_table = None
 
 
 class Number:
@@ -26,7 +27,6 @@ class Number:
     def set_context(self, context=None):
         self._context = context
         return self
-
 
     def added_to(self, other):
         if isinstance(other, Number):
@@ -54,8 +54,32 @@ class Number:
         if isinstance(other, Number):
             return Number(self._value ** other._value).set_context(self._context), None
 
+    def copy(self):
+        copy = Number(self._value)
+        copy.set_position(self._start_pos, self._end_pos)
+        copy.set_context(self._context)
+        return copy
+
     def __repr__(self):
         return str(self._value)
+
+
+class SymbolTable:
+    def __init__(self):
+        self._symbols = {}
+        self._parent = None
+
+    def get(self, variable_name):
+        value = self._symbols.get(variable_name, None)
+        if value is None and self._parent:
+            return self._parent.get(variable_name, None)
+        return value
+
+    def set(self, variable_name, value):
+        self._symbols[variable_name] = value
+
+    def remove(self, variable_name):
+        del self._symbols[variable_name]
 
 
 class RuntimeResult:
@@ -79,7 +103,7 @@ class RuntimeResult:
 
 class Interpreter:
 
-    def no_visit_method(self, node):
+    def no_visit_method(self, node, context):
         raise Exception(f"No visit_{type(node).__name__} method defined")
 
     def visit_NumberNode(self, node, context):
@@ -87,6 +111,25 @@ class Interpreter:
         return RuntimeResult().success(
             Number(token.get_value()).set_context(context).set_position(node.get_start_pos(), node.get_end_pos())
         )
+
+    def visit_VariableAssignNode(self, node, context):
+        res = RuntimeResult()
+        var_name = node.get_token().get_value()
+        value = res.register(self.interpret(node.get_value_node(), context))
+        if res._error:
+            return res
+        context._symbol_table.set(var_name, value)
+        return res.success(value)
+
+    def visit_VariableAccessNode(self, node, context):
+        res = RuntimeResult()
+        var_name = node.get_token().get_value()
+        value = context._symbol_table.get(var_name)
+        if not value:
+            return res.failed(RTError(node.get_start_pos(), node.get_end_pos(),
+                                      f"'{var_name}' is not defined.", context))
+        value = value.copy().set_position(node.get_start_pos(), node.get_end_pos())
+        return res.success(value)
 
     def visit_UnaryOpNode(self, node, context):
         res = RuntimeResult()
@@ -134,9 +177,13 @@ class Interpreter:
         return method(node, context)
 
 
+GLOBAL_SYMBOL_TABLE = SymbolTable()
+GLOBAL_SYMBOL_TABLE.set("null", Number(0))
+
+
 def exec_interpreter(abstract_syntax_tree):
     interpreter = Interpreter()
     context = Context('<program>')
+    context._symbol_table = GLOBAL_SYMBOL_TABLE
     result = interpreter.interpret(abstract_syntax_tree._node, context)
     return result._value, result._error
-

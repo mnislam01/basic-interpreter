@@ -1,4 +1,8 @@
-expression  : term ((PLUS | MINUS) term)*
+# TODO: Make the grammar syntax compatible with Backus-Noir-Form (BNF) or Extended Backus-Noir-Form (EBNF)
+# CPython source code is using Extended Backus-Noir-Form (EBNF), that can be an inspiration :p
+
+expression  : KEYWORD: VAR IDENTIFIER EQ expression
+            : term ((PLUS | MINUS) term)*
 
 term        : factor ((MUL | DIV) factor)*
 
@@ -7,5 +11,5 @@ factor      : (PLUS | MINUS) factor
 
 power       : atom (POWER factor)*
 
-atom        : INT | FLOAT
-            : LPARAN expr RPARAN
+atom        : INT | FLOAT | IDENTIFIER
+            : LPAREN expr RPAREN

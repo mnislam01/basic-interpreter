@@ -1,20 +1,30 @@
 #########################
 # CONSTANTS
 #########################
+import string
 
 DIGITS = "0123456789"
+LETTERS = string.ascii_letters
+ALPHANUMERIC = LETTERS + DIGITS
+UNDERSCORE_ALPHANUMERIC = ALPHANUMERIC + "_"
+KEYWORDS = [
+    "VAR"
+]
 
 
 class TokenTypes:
     TT_INT = "TT_INT"
     TT_FLOAT = "FLOAT"
+    TT_IDENTIFIER = "IDENTIFIER"
+    TT_KEYWORD = "KEYWORD"
     TT_PLUS = "PLUS"
     TT_MINUS = "MINUS"
     TT_MUL = "MUL"
     TT_DIV = "DIV"
     TT_POWER = "POWER"
-    TT_LPARAM = "LPARAM"
-    TT_RPARAM = "RPARAM"
+    TT_EQ = "EQ"
+    TT_LPAREN = "LPAREN"
+    TT_RPAREN = "RPAREN"
     TT_EOF = "EOF"
 
 
@@ -44,6 +54,9 @@ class TokenObj:
 
     def get_end_pos(self):
         return self._end_pos
+
+    def matches(self, token_type, value):
+        return self._type == token_type and self._value == value
 
     def __repr__(self):
         repr_str = f"{self._type}"

@@ -80,6 +80,42 @@ class NumberNode:
         return f"{self._token}"
 
 
+class VariableAccessNode:
+    def __init__(self, variable_name_token):
+        self._variable_name_token = variable_name_token
+        self._start_pos = self._variable_name_token.get_start_pos()
+        self._end_pos = self._variable_name_token.get_end_pos()
+
+    def get_start_pos(self):
+        return self._start_pos
+
+    def get_end_pos(self):
+        return self._end_pos
+
+    def get_token(self):
+        return self._variable_name_token
+
+
+class VariableAssignNode:
+    def __init__(self, variable_name_token, value_node):
+        self._variable_name_token = variable_name_token
+        self._value_node = value_node
+        self._start_pos = self._variable_name_token.get_start_pos()
+        self._end_pos = self._value_node.get_end_pos()
+
+    def get_token(self):
+        return self._variable_name_token
+
+    def get_value_node(self):
+        return self._value_node
+
+    def get_start_pos(self):
+        return self._start_pos
+
+    def get_end_pos(self):
+        return self._end_pos
+
+
 class UnaryOpNode:
     def __init__(self, operator_token, node):
         self._operator_token = operator_token
@@ -131,20 +167,24 @@ class ParseResult:
     def __init__(self):
         self._error = None
         self._node = None
+        self._advance_count = 0
+
+    def register_advancement(self):
+        self._advance_count += 1
 
     def register(self, res):
-        if isinstance(res, ParseResult):
-            if res._error:
-                self._error = res._error
-            return res._node
-        return res
+        self._advance_count += res._advance_count
+        if res._error:
+            self._error = res._error
+        return res._node
 
     def success(self, node):
         self._node = node
         return self
 
     def failed(self, error):
-        self._error = error
+        if not self._error or self._advance_count == 0:
+            self._error = error
         return self
 
 
@@ -165,7 +205,8 @@ class Parser:
 
         while self.current_token._type in operation_tokens:
             operator_token = self.current_token
-            res.register(self.advance())
+            res.register_advancement()
+            self.advance()
             right_factor = res.register(function_b())
             if res._error:
                 return res
@@ -177,16 +218,24 @@ class Parser:
         token = self.current_token
 
         if token._type in [TokenTypes.TT_INT, TokenTypes.TT_FLOAT]:
-            res.register(self.advance())
+            res.register_advancement()
+            self.advance()
             return res.success(NumberNode(token))
 
-        elif token._type == TokenTypes.TT_LPARAM:
-            res.register(self.advance())
+        elif token.get_type() == TokenTypes.TT_IDENTIFIER:
+            res.register_advancement()
+            self.advance()
+            return res.success(VariableAccessNode(token))
+
+        elif token._type == TokenTypes.TT_LPAREN:
+            res.register_advancement()
+            self.advance()
             expr = res.register(self.expression())
             if res._error:
                 return res
-            if self.current_token._type == TokenTypes.TT_RPARAM:
-                res.register(self.advance())
+            if self.current_token._type == TokenTypes.TT_RPAREN:
+                res.register_advancement()
+                self.advance()
                 return res.success(expr)
             else:
                 return res.failed(
@@ -198,7 +247,7 @@ class Parser:
         return res.failed(
             InvalidSyntaxError(
                 self.current_token._start_pos, self.current_token._end_pos,
-                "Expected INT, FLOAT, '+', '-', '*' or '/'"
+                "Expected INT, FLOAT, IDENTIFIER, '+', '-', '*' or '('"
             )
         )
 
@@ -210,7 +259,8 @@ class Parser:
         token = self.current_token
 
         if token._type in [TokenTypes.TT_PLUS, TokenTypes.TT_MINUS]:
-            res.register(self.advance())
+            res.register_advancement()
+            self.advance()
             factor = res.register(self.factor())
             if res._error:
                 return res
@@ -222,7 +272,46 @@ class Parser:
         return self.binary_operation(self.factor, [TokenTypes.TT_MUL, TokenTypes.TT_DIV])
 
     def expression(self):
-        return self.binary_operation(self.term, [TokenTypes.TT_PLUS, TokenTypes.TT_MINUS])
+        res = ParseResult()
+        if self.current_token.matches(TokenTypes.TT_KEYWORD, "VAR"):
+            res.register_advancement()
+            self.advance()
+
+            if self.current_token.get_type() != TokenTypes.TT_IDENTIFIER:
+                res.failed(
+                    InvalidSyntaxError(
+                        self.current_token.get_start_pos(), self.current_token.get_end_pos(),
+                        "Expected identifier"
+                    )
+                )
+            var_name = self.current_token
+            res.register_advancement()
+            self.advance()
+
+            if self.current_token.get_type() != TokenTypes.TT_EQ:
+                res.failed(
+                    InvalidSyntaxError(
+                        self.current_token.get_start_pos(), self.current_token.get_end_pos(),
+                        "Expected '='"
+                    )
+                )
+            res.register_advancement()
+            self.advance()
+
+            expr = res.register(self.expression())
+            if res._error:
+                return res
+            return res.success(VariableAssignNode(var_name, expr))
+
+        node = res.register(self.binary_operation(self.term, [TokenTypes.TT_PLUS, TokenTypes.TT_MINUS]))
+        if res._error:
+            return res.failed(
+                InvalidSyntaxError(
+                    self.current_token._start_pos, self.current_token._end_pos,
+                    "Expected VAR, int, float, identifier, '+', '-', '*' or '('"
+                )
+            )
+        return res.success(node)
 
     def advance(self):
         self._token_indx += 1
